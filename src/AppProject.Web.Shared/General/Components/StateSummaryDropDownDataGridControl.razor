@@ -1,0 +1,76 @@
+﻿@using AppProject.Web.ApiClient.General
+@using AppProject.Web.Models.General
+
+@inherits AppProjectComponentBase
+
+@typeparam TValue
+
+<DropDownDataGridControl TValue="TValue" Name=@this.Name Data=@this.StateSummaries LoadData=@this.LoadStatesAsync
+    Value=@this.Value ValueChanged=@this.OnValueChangedAsync
+    TextProperty=@nameof(StateSummary.Name) ValueProperty=@nameof(StateSummary.Id)>
+    <Columns>
+        <RadzenDropDownDataGridColumn Property=@nameof(StateSummary.Name) Title=@StringResource.GetStringByKey("General_StateSummaryDropDownDataGridControl_NameColumn_Title") />
+        <RadzenDropDownDataGridColumn Property=@nameof(StateSummary.CountryName) Title=@StringResource.GetStringByKey("General_StateSummaryDropDownDataGridControl_CountryNameColumn_Title") />
+    </Columns>
+</DropDownDataGridControl>
+
+@code {
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public TValue? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    [Inject]
+    private IStateSummaryClient StateSummaryClient { get; set; } = default!;
+
+    private IEnumerable<StateSummary> StateSummaries { get; set; } = default!;
+
+    private async Task LoadStatesAsync(LoadDataArgs args)
+    {
+        var summariesResponse = await this.GetResultOrHandleExceptionAsync<SummariesResponse<StateSummary>>(
+            async () =>
+            {
+                var summariesResponse = await this.StateSummaryClient.GetSummariesAsync(new StateSummarySearchRequest() { SearchText = args.Filter, Take = 100 });
+
+                if (string.IsNullOrWhiteSpace(args.Filter)
+                    && this.Value is Guid selectedGuid
+                    && selectedGuid != Guid.Empty
+                    && summariesResponse?.Summaries.Any(x => x.Id == selectedGuid) == false)
+                {
+                    var selectedSummaryResponse = await this.StateSummaryClient.GetSummaryAsync(new GetByIdRequest<Guid>{ Id = selectedGuid });
+
+                    if (selectedSummaryResponse?.Summary != null)
+                    {
+                        return new SummariesResponse<StateSummary>
+                        {
+                            Summaries = summariesResponse.Summaries.Concat([selectedSummaryResponse.Summary])
+                                .OrderBy(x => x.Name)
+                                .ToArray()
+                        };
+                    }
+                }
+
+                return summariesResponse!;
+            },
+            showBusyIndicator: false);
+
+        this.StateSummaries = summariesResponse?.Summaries ?? Enumerable.Empty<StateSummary>();
+    }
+
+    private async Task OnValueChangedAsync(TValue value)
+    {
+        if (!EqualityComparer<TValue>.Default.Equals(this.Value, value))
+        {
+            this.Value = value;
+
+            if (this.ValueChanged.HasDelegate)
+            {
+                await this.ValueChanged.InvokeAsync(value);
+            }
+        }
+    }
+}

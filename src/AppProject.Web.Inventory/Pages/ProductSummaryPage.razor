@@ -1,0 +1,78 @@
+﻿@page "/inventory/products"
+
+@attribute [Authorize]
+
+@inherits SearchPage<SearchRequest, ProductSummary>
+
+<SearchControl TRequest="SearchRequest" Request=@this.Request
+    Title=@StringResource.GetStringByKey("Inventory_ProductSummaryPage_Title") @bind-Take=@this.Request.Take
+    @bind-SearchText=@this.Request.SearchText DisplayTakeInfo=@this.DisplayTakeInfo
+    OnExecuteSearch=@this.ExecuteSearchAsync>
+    <DataGridControl TItem="ProductSummary" Items=@this.Items @bind-SelectedItems=@this.SelectedItems
+        OnNewItem=@this.OnNewItemAsync OnEditItem=@this.OnEditItemAsync OnDeleteItem=@this.OnDeleteItemAsync>
+
+        <RadzenDataGridColumn TItem="ProductSummary"
+            Title=@StringResource.GetStringByKey("Inventory_ProductSummaryPage_NameColumn_Title")
+            Property=@nameof(ProductSummary.Name) />
+
+        <RadzenDataGridColumn TItem="ProductSummary"
+            Title=@StringResource.GetStringByKey("Inventory_ProductSummaryPage_CodeColumn_Title")
+            Property=@nameof(ProductSummary.Code) />
+
+        <RadzenDataGridColumn TItem="ProductSummary"
+            Title=@StringResource.GetStringByKey("Inventory_ProductSummaryPage_MinimumQuantityColumn_Title")
+            Property=@nameof(ProductSummary.MinimumStockQuantity) />
+
+    </DataGridControl>
+</SearchControl>
+
+@code {
+    [Inject]
+    private IProductSummaryClient ProductSummaryClient { get; set; } = default!;
+
+    [Inject]
+    private IProductClient ProductClient { get; set; } = default!;
+
+    protected override async Task<IEnumerable<ProductSummary>> FetchDataAsync()
+    {
+        var summariesResponse = await this.GetResultOrHandleExceptionAsync<SummariesResponse<ProductSummary>>(
+            () => this.ProductSummaryClient.GetSummariesAsync(this.Request));
+
+        return summariesResponse?.Summaries ?? Enumerable.Empty<ProductSummary>();
+    }
+
+    private async Task OnNewItemAsync()
+    {
+        await this.OpenDialogAsync<ProductFormPage, Product>(
+            title: StringResource.GetStringByKey("Inventory_ProductFormPage_Title"));
+        await this.ExecuteSearchAsync();
+    }
+
+    private async Task OnEditItemAsync()
+    {
+        var selectedId = this.SelectedItems.FirstOrDefault()?.Id;
+
+        if (selectedId.HasValue)
+        {
+            await this.OpenDialogAsync<ProductFormPage, Product>(
+                title: StringResource.GetStringByKey("Inventory_ProductFormPage_Title"),
+                parameters: new Dictionary<string, object>() { { "Id", selectedId } });
+            await this.ExecuteSearchAsync();
+        }
+    }
+
+    private async Task OnDeleteItemAsync()
+    {
+        var selectedIds = this.SelectedItems.Select(x => x.Id);
+
+        if (selectedIds.Any() && await this.ConfirmAsync(StringResource.GetStringByKey("Dialog_Confirm_Delete_Message")))
+        {
+            foreach (var selectedId in selectedIds)
+            {
+                await this.HandleExceptionAsync(() => this.ProductClient.DeleteAsync(new DeleteRequest<Guid> { Id = selectedId }));
+            }
+
+            await this.ExecuteSearchAsync();
+        }
+    }
+}

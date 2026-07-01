@@ -1,0 +1,93 @@
+﻿@attribute [Authorize]
+
+@inherits ModelFormPage<StockMovement>
+
+<ModelFormControl TModel="StockMovement" Model=@this.Model OnSave=@this.OnSaveAsync OnCancel=@this.OnCancelAsync>
+    <FieldsetControl Title=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_Title")>
+        <RadzenRow>
+            <RadzenColumn>
+                <RadzenText TextStyle="TextStyle.Subtitle2">@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_IdField_Text", this.Model.Id)</RadzenText>
+            </RadzenColumn>
+        </RadzenRow>
+        <RadzenRow>
+            <RadzenColumn>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+
+                    <RadzenFormField Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_ProductField_Label")>
+                        <ProductSummaryDropDownDataGridControl TValue="Guid" Name="ProductField" @bind-Value=@this.Model.ProductId />
+                        <RadzenCustomValidator Component="ProductField" Validator="() => this.Model.ProductId != Guid.Empty" Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_ProductField_Required") />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_QuantityField_Label")>
+                        <RadzenNumeric @bind-Value=@this.Model.Quantity Name="QuantityField" Min="@(0.01m)" Step="0.01" />
+                        <RadzenNumericRangeValidator Component="QuantityField" Min="0.01" Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_QuantityField_InvalidValue") />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_MovementDateField_Label")>
+                        <RadzenDatePicker @bind-Value=@this.Model.MovementDate Name="MovementDateField" />
+                        <RadzenRequiredValidator Component="MovementDateField" Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_MovementDateField_Required") />
+                    </RadzenFormField>
+
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenCheckBox @bind-Value=@this.Model.IsOutbound />
+                        <RadzenLabel Text=@StringResource.GetStringByKey("Inventory_StockMovementFormPage_GeneralFieldset_IsOutboundField_Label") />
+                    </RadzenStack>
+
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+    </FieldsetControl>
+</ModelFormControl>
+
+@code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    [Inject]
+    private IStockMovementClient StockMovementClient { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (this.Model.MovementDate == default)
+        {
+            this.Model.MovementDate = DateTime.UtcNow;
+        }
+
+        if (this.Id.HasValue)
+        {
+            var entityResponse = await this.GetResultOrHandleExceptionAsync<EntityResponse<StockMovement>>(
+                () => this.StockMovementClient.GetAsync(new GetByIdRequest<Guid>{ Id = this.Id.Value })
+            );
+
+            if (entityResponse is not null)
+            {
+                this.SetModel(entityResponse.Entity);
+            }
+        }
+    }
+
+    private async Task OnSaveAsync()
+    {
+        var keyResponse = await this.GetResultOrHandleExceptionAsync<KeyResponse<Guid>>(
+            async () =>
+            {
+                if (this.Model.Id.GetValueOrDefault() != Guid.Empty)
+                {
+                    return await this.StockMovementClient.PutAsync(new CreateOrUpdateRequest<StockMovement> { Entity = this.Model });
+                }
+
+                return await this.StockMovementClient.PostAsync(new CreateOrUpdateRequest<StockMovement> { Entity = this.Model });
+            }
+        );
+
+        if (keyResponse is not null)
+        {
+            this.Model.Id = keyResponse.Id;
+            await this.CloseDialogAsync(this.Model);
+        }
+    }
+
+    private Task OnCancelAsync() => this.CloseDialogAsync();
+}

@@ -1,0 +1,40 @@
+﻿@using AppProject.Web.Constants
+@using Blazored.LocalStorage
+
+@inherits AppProjectComponentBase
+
+<RadzenToggleButton @bind-Value=@this.IsDarkTheme Change=@this.OnThemeChangedAsync Icon="@DarkIconName"
+    ToggleIcon="@LightIconName" ButtonStyle="ButtonStyle.Base" ToggleButtonStyle="ButtonStyle.Base"
+    ToggleShade="Shade.Default" />
+
+@code {
+    private const string LightIconName = "light_mode";
+    private const string DarkIconName = "dark_mode";
+
+    [Inject]
+    private ILocalStorageService LocalStorageService { get; set; } = default!;
+
+    [Inject]
+    private ThemeService ThemeService { get; set; } = default!;
+
+    private bool IsDarkTheme { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var theme = await this.LocalStorageService.GetItemAsync<string>(ThemeConstants.ThemeLocalStorageKey);
+
+        this.IsDarkTheme = theme == ThemeConstants.DefaultDarkTheme;
+
+        this.StateHasChanged();
+    }
+
+    private async Task OnThemeChangedAsync(bool value)
+    {
+        var theme = value ? ThemeConstants.DefaultDarkTheme : ThemeConstants.DefaultLightTheme;
+
+        await this.LocalStorageService.SetItemAsync(ThemeConstants.ThemeLocalStorageKey, theme);
+        this.ThemeService.SetTheme(theme);
+
+        this.StateHasChanged();
+    }
+}

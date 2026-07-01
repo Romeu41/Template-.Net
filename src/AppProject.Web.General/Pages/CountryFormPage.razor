@@ -1,0 +1,77 @@
+﻿@attribute [Authorize]
+
+@inherits ModelFormPage<Country>
+
+<ModelFormControl TModel="Country" Model=@this.Model OnSave=@this.OnSaveAsync OnCancel=@this.OnCancelAsync>
+    <FieldsetControl Title=@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_Title")>
+        <RadzenRow>
+            <RadzenColumn>
+                <RadzenText TextStyle="TextStyle.Subtitle2">@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_IdField_Text", this.Model.Id)</RadzenText>
+            </RadzenColumn>
+        </RadzenRow>
+        <RadzenRow>
+            <RadzenColumn>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Wrap="FlexWrap.Wrap">
+
+                    <RadzenFormField Text=@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_NameField_Label")>
+                        <RadzenTextBox Name="NameField" @bind-Value=@this.Model.Name />
+                        <RadzenRequiredValidator Component="NameField" Text=@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_NameField_Required") />
+                        <RadzenLengthValidator Component="NameField" Max="200" Text=@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_NameField_InvalidLength") />
+                    </RadzenFormField>
+
+                    <RadzenFormField Text=@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_CodeField_Label")>
+                        <RadzenTextBox Name="CodeField" @bind-Value=@this.Model.Code />
+                        <RadzenLengthValidator Component="CodeField" Max="200" Text=@StringResource.GetStringByKey("General_CountryFormPage_GeneralFieldset_CodeField_InvalidLength") />
+                    </RadzenFormField>
+
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+    </FieldsetControl>
+</ModelFormControl>
+
+@code {
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    [Inject]
+    private ICountryClient CountryClient { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (this.Id.HasValue)
+        {
+            var entityResponse = await this.GetResultOrHandleExceptionAsync<EntityResponse<Country>>(
+                () => this.CountryClient.GetAsync(new GetByIdRequest<Guid>{ Id = this.Id.Value }));
+
+            if (entityResponse is not null)
+            {
+                this.SetModel(entityResponse.Entity);
+            }
+        }
+    }
+
+    private async Task OnSaveAsync()
+    {
+        var keyResponse = await this.GetResultOrHandleExceptionAsync<KeyResponse<Guid>>(
+            async () =>
+            {
+                if (this.Model.Id.GetValueOrDefault() != Guid.Empty)
+                {
+                    return await this.CountryClient.PutAsync(new CreateOrUpdateRequest<Country> { Entity = this.Model });
+                }
+
+                return await this.CountryClient.PostAsync(new CreateOrUpdateRequest<Country> { Entity = this.Model });
+            });
+
+        if (keyResponse is not null)
+        {
+            this.Model.Id = keyResponse.Id;
+            await this.CloseDialogAsync(this.Model);
+        }
+    }
+
+    private Task OnCancelAsync() => this.CloseDialogAsync();
+}

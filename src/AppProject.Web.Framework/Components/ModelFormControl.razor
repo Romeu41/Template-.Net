@@ -1,0 +1,55 @@
+﻿@using AppProject.Web.Models
+
+@inherits AppProjectComponentBase
+
+@typeparam TModel where TModel : ObservableModel, new()
+
+<RadzenTemplateForm TItem="TModel" Data=@this.Model Submit=this.OnSave>
+    <RadzenRow class="rz-mb-3" AlignItems="AlignItems.End">
+        <RadzenColumn>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="3" Wrap="FlexWrap.Wrap" JustifyContent="JustifyContent.Right">
+                <RadzenButton ButtonStyle="ButtonStyle.Primary"
+                    Icon=@(this.PreferExecuteOverSave ? "start" : "save")
+                    Text=@(this.PreferExecuteOverSave ? StringResource.GetStringByKey("ModelFormControl_ExecuteButton_Text") : StringResource.GetStringByKey("ModelFormControl_SaveButton_Text"))
+                    Visible=@this.ShowSaveAction
+                    ButtonType="ButtonType.Submit" />
+                @this.GlobalActions
+                <RadzenButton ButtonStyle="ButtonStyle.Base"
+                    Icon=@(this.PreferCloseOverCancel ? "close" : "cancel")
+                    Text=@(this.PreferCloseOverCancel ? StringResource.GetStringByKey("ModelFormControl_CloseButton_Text") : StringResource.GetStringByKey("ModelFormControl_CancelButton_Text"))
+                    Visible=@this.ShowCancelAction
+                    Click=@this.OnCancel />
+            </RadzenStack>
+        </RadzenColumn>
+    </RadzenRow>
+    @this.ChildContent
+</RadzenTemplateForm>
+
+@code {
+    [Parameter]
+    public TModel? Model { get; set; }
+
+    [Parameter]
+    public RenderFragment? GlobalActions { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public bool ShowSaveAction { get; set; } = true;
+
+    [Parameter]
+    public bool PreferExecuteOverSave { get; set; }
+
+    [Parameter]
+    public bool ShowCancelAction { get; set; } = true;
+
+    [Parameter]
+    public bool PreferCloseOverCancel { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}

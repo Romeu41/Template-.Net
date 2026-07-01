@@ -1,0 +1,70 @@
+﻿@page "/general/countries"
+
+@attribute [Authorize]
+
+@inherits SearchPage<SearchRequest, CountrySummary>
+
+<SearchControl TRequest="SearchRequest" Request=@this.Request
+    Title=@StringResource.GetStringByKey("General_CountrySummaryPage_Title") @bind-Take=@this.Request.Take
+    @bind-SearchText=@this.Request.SearchText DisplayTakeInfo=@this.DisplayTakeInfo
+    OnExecuteSearch=@this.ExecuteSearchAsync>
+    <DataGridControl TItem="CountrySummary" Items=@this.Items @bind-SelectedItems=@this.SelectedItems
+        OnNewItem=@this.OnNewItemAsync OnEditItem=@this.OnEditItemAsync OnDeleteItem=@OnDeleteItemAsync>
+
+        <RadzenDataGridColumn TItem="CountrySummary"
+            Title=@StringResource.GetStringByKey("General_CountrySummaryPage_NameColumn_Title")
+            Property=@nameof(CountrySummary.Name) />
+
+    </DataGridControl>
+</SearchControl>
+
+@code {
+    [Inject]
+    private ICountrySummaryClient CountrySummaryClient { get; set; } = default!;
+
+    [Inject]
+    private ICountryClient CountryClient { get; set; } = default!;
+
+    protected override async Task<IEnumerable<CountrySummary>> FetchDataAsync()
+    {
+        var summariesResponse = await this.GetResultOrHandleExceptionAsync<SummariesResponse<CountrySummary>>(
+            () => this.CountrySummaryClient.GetSummariesAsync(this.Request));
+
+        return summariesResponse?.Summaries ?? Enumerable.Empty<CountrySummary>();
+    }
+
+    private async Task OnNewItemAsync()
+    {
+        await this.OpenDialogAsync<CountryFormPage, Country>(
+            title: StringResource.GetStringByKey("General_CountryFormPage_Title"));
+        await this.ExecuteSearchAsync();
+    }
+
+    private async Task OnEditItemAsync()
+    {
+        var selectedId = this.SelectedItems.FirstOrDefault()?.Id;
+
+        if (selectedId.HasValue)
+        {
+            await this.OpenDialogAsync<CountryFormPage, Country>(
+                title: StringResource.GetStringByKey("General_CountryFormPage_Title"),
+                parameters: new Dictionary<string, object>() { { "Id", selectedId } });
+            await this.ExecuteSearchAsync();
+        }
+    }
+
+    private async Task OnDeleteItemAsync()
+    {
+        var selectedIds = this.SelectedItems.Select(x => x.Id);
+
+        if (selectedIds.Any() && await this.ConfirmAsync(StringResource.GetStringByKey("Dialog_Confirm_Delete_Message")))
+        {
+            foreach (var selectedId in selectedIds)
+            {
+                await this.HandleExceptionAsync(() => this.CountryClient.DeleteAsync(new DeleteRequest<Guid> { Id = selectedId }));
+            }
+
+            await this.ExecuteSearchAsync();
+        }
+    }
+}

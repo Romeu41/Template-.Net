@@ -1,0 +1,94 @@
+﻿@page "/inventory/stock-movements"
+
+@attribute [Authorize]
+
+@inherits SearchPage<StockMovementSummarySearchRequest, StockMovementSummary>
+
+<SearchControl TRequest="StockMovementSummarySearchRequest" Request=@this.Request
+    Title=@StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_Title") @bind-Take=@this.Request.Take
+    @bind-SearchText=@this.Request.SearchText DisplayTakeInfo=@this.DisplayTakeInfo
+    OnExecuteSearch=@this.ExecuteSearchAsync>
+    <FilterContent>
+        <RadzenFormField Text=@StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_FilterContent_ProductField_Label")>
+            <ProductSummaryDropDownDataGridControl TValue="Guid?" @bind-Value=@this.Request.ProductId />
+        </RadzenFormField>
+    </FilterContent>
+    <ChildContent>
+        <DataGridControl TItem="StockMovementSummary" Items=@this.Items @bind-SelectedItems=@this.SelectedItems
+            OnNewItem=@this.OnNewItemAsync OnEditItem=@this.OnEditItemAsync OnDeleteItem=@this.OnDeleteItemAsync>
+
+            <RadzenDataGridColumn TItem="StockMovementSummary"
+                Title=@StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_ProductColumn_Title")
+                Property=@nameof(StockMovementSummary.ProductName) />
+
+            <RadzenDataGridColumn TItem="StockMovementSummary"
+                Title=@StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_QuantityColumn_Title")
+                Property=@nameof(StockMovementSummary.Quantity) />
+
+            <RadzenDataGridColumn TItem="StockMovementSummary"
+                Title=@StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_MovementDateColumn_Title")
+                Property=@nameof(StockMovementSummary.MovementDate) />
+
+            <RadzenDataGridColumn TItem="StockMovementSummary"
+                Title=@StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_IsOutboundColumn_Title")>
+                <Template Context="summary">
+                    @(summary.IsOutbound
+                        ? StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_IsOutboundColumn_Outbound_Text")
+                        : StringResource.GetStringByKey("Inventory_StockMovementSummaryPage_IsOutboundColumn_Inbound_Text"))
+                </Template>
+            </RadzenDataGridColumn>
+
+        </DataGridControl>
+    </ChildContent>
+</SearchControl>
+
+@code {
+    [Inject]
+    private IStockMovementSummaryClient StockMovementSummaryClient { get; set; } = default!;
+
+    [Inject]
+    private IStockMovementClient StockMovementClient { get; set; } = default!;
+
+    protected override async Task<IEnumerable<StockMovementSummary>> FetchDataAsync()
+    {
+        var summariesResponse = await this.GetResultOrHandleExceptionAsync<SummariesResponse<StockMovementSummary>>(
+            () => this.StockMovementSummaryClient.GetSummariesAsync(this.Request));
+
+        return summariesResponse?.Summaries ?? Enumerable.Empty<StockMovementSummary>();
+    }
+
+    private async Task OnNewItemAsync()
+    {
+        await this.OpenDialogAsync<StockMovementFormPage, StockMovement>(
+            title: StringResource.GetStringByKey("Inventory_StockMovementFormPage_Title"));
+        await this.ExecuteSearchAsync();
+    }
+
+    private async Task OnEditItemAsync()
+    {
+        var selectedId = this.SelectedItems.FirstOrDefault()?.Id;
+
+        if (selectedId.HasValue)
+        {
+            await this.OpenDialogAsync<StockMovementFormPage, StockMovement>(
+                title: StringResource.GetStringByKey("Inventory_StockMovementFormPage_Title"),
+                parameters: new Dictionary<string, object>() { { "Id", selectedId } });
+            await this.ExecuteSearchAsync();
+        }
+    }
+
+    private async Task OnDeleteItemAsync()
+    {
+        var selectedIds = this.SelectedItems.Select(x => x.Id);
+
+        if (selectedIds.Any() && await this.ConfirmAsync(StringResource.GetStringByKey("Dialog_Confirm_Delete_Message")))
+        {
+            foreach (var selectedId in selectedIds)
+            {
+                await this.HandleExceptionAsync(() => this.StockMovementClient.DeleteAsync(new DeleteRequest<Guid> { Id = selectedId }));
+            }
+
+            await this.ExecuteSearchAsync();
+        }
+    }
+}

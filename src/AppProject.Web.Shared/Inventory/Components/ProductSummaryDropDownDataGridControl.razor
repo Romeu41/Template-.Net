@@ -1,0 +1,76 @@
+﻿@using AppProject.Web.ApiClient.Inventory
+@using AppProject.Web.Models.Inventory
+
+@inherits AppProjectComponentBase
+
+@typeparam TValue
+
+<DropDownDataGridControl TValue="TValue" Name=@this.Name Data=@this.ProductSummaries LoadData=@this.LoadProductsAsync
+    Value=@this.Value ValueChanged=@this.OnValueChangedAsync
+    TextProperty=@nameof(ProductSummary.Name) ValueProperty=@nameof(ProductSummary.Id)>
+    <Columns>
+        <RadzenDropDownDataGridColumn Property=@nameof(ProductSummary.Name) Title=@StringResource.GetStringByKey("Inventory_ProductSummaryDropDownDataGridControl_NameColumn_Title") />
+        <RadzenDropDownDataGridColumn Property=@nameof(ProductSummary.Code) Title=@StringResource.GetStringByKey("Inventory_ProductSummaryDropDownDataGridControl_CodeColumn_Title") />
+    </Columns>
+</DropDownDataGridControl>
+
+@code {
+    [Parameter]
+    public string? Name { get; set; }
+
+    [Parameter]
+    public TValue? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TValue> ValueChanged { get; set; }
+
+    [Inject]
+    private IProductSummaryClient ProductSummaryClient { get; set; } = default!;
+
+    private IEnumerable<ProductSummary> ProductSummaries { get; set; } = default!;
+
+    private async Task LoadProductsAsync(LoadDataArgs args)
+    {
+        var summariesResponse = await this.GetResultOrHandleExceptionAsync<SummariesResponse<ProductSummary>>(
+            async () =>
+            {
+                var response = await this.ProductSummaryClient.GetSummariesAsync(new SearchRequest { SearchText = args.Filter, Take = 100 });
+
+                if (string.IsNullOrWhiteSpace(args.Filter)
+                    && this.Value is Guid selectedGuid
+                    && selectedGuid != Guid.Empty
+                    && response?.Summaries.Any(x => x.Id == selectedGuid) == false)
+                {
+                    var selectedSummaryResponse = await this.ProductSummaryClient.GetSummaryAsync(new GetByIdRequest<Guid> { Id = selectedGuid });
+
+                    if (selectedSummaryResponse?.Summary != null)
+                    {
+                        return new SummariesResponse<ProductSummary>
+                        {
+                            Summaries = response.Summaries.Concat([selectedSummaryResponse.Summary])
+                                .OrderBy(x => x.Name)
+                                .ToArray()
+                        };
+                    }
+                }
+
+                return response!;
+            },
+            showBusyIndicator: false);
+
+        this.ProductSummaries = summariesResponse?.Summaries ?? Enumerable.Empty<ProductSummary>();
+    }
+
+    private async Task OnValueChangedAsync(TValue value)
+    {
+        if (!EqualityComparer<TValue>.Default.Equals(this.Value, value))
+        {
+            this.Value = value;
+
+            if (this.ValueChanged.HasDelegate)
+            {
+                await this.ValueChanged.InvokeAsync(value);
+            }
+        }
+    }
+}

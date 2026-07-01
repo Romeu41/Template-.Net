@@ -1,0 +1,68 @@
+﻿@using AppProject.Models.Auth
+@using AppProject.Web.ApiClient.Auth
+@using Microsoft.AspNetCore.Components.Authorization
+
+@inherits AppProjectComponentBase
+
+<RadzenPanelMenu>
+    <RadzenPanelMenuItem Text=@StringResource.GetStringByKey("Menu_Home_Item_Text") Icon="home" Path="/" />
+    <AuthorizeView>
+        <Authorized>
+
+            @if(permissions?.Contains(PermissionType.System_ManageSettings) == true)
+            {
+                <RadzenPanelMenuItem Text=@StringResource.GetStringByKey("Menu_Countries_Item_Text") Icon="globe" Path="/general/countries" />
+                <RadzenPanelMenuItem Text=@StringResource.GetStringByKey("Menu_States_Item_Text") Icon="globe_location_pin" Path="/general/states" />
+                <RadzenPanelMenuItem Text=@StringResource.GetStringByKey("Menu_Cities_Item_Text") Icon="location_city" Path="/general/cities" />
+                <RadzenPanelMenuItem Text=@StringResource.GetStringByKey("Menu_Products_Item_Text") Icon="inventory_2" Path="/inventory/products" />
+                <RadzenPanelMenuItem Text=@StringResource.GetStringByKey("Menu_StockMovements_Item_Text") Icon="swap_vert" Path="/inventory/stock-movements" />
+            }
+
+        </Authorized>
+    </AuthorizeView>
+</RadzenPanelMenu>
+
+@code{
+    private IEnumerable<PermissionType> permissions = Enumerable.Empty<PermissionType>();
+
+    [Inject]
+    private AuthenticationStateProvider AuthenticationStateProvider { get; set; } = default!;
+
+    [Inject]
+    private IPermissionClient PermissionClient { get; set; } = default!;
+
+    public void Dispose()
+    {
+        this.AuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        this.AuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        await this.LoadPermissionsAsync(null);
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        _ = this.InvokeAsync(() => this.LoadPermissionsAsync(task));
+    }
+
+    private async Task LoadPermissionsAsync(Task<AuthenticationState>? authenticationStateTask)
+    {
+        permissions = Enumerable.Empty<PermissionType>();
+
+        var authState = authenticationStateTask != null
+            ? await authenticationStateTask
+            : await this.AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            permissions = await this.PermissionClient.GetCurrentUserPermissionsAsync();
+        }
+
+        await this.InvokeAsync(StateHasChanged);
+    }
+}
